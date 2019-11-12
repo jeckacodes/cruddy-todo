@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const _ = require('underscore');
 const counter = require('./counter');
+const Promise = require('bluebird');
 
 var items = {};
 
@@ -27,12 +28,22 @@ exports.readAll = (callback) => {
   // var data = _.map(items, (text, id) => {
   //   return { id, text };
   // });
+  var readOneAsync = Promise.promisify(exports.readOne);
   return fs.readdir(exports.dataDir, (err, files)=>{
     if (err) {
       throw ('error reading all');
     } else {
-      callback(null, files.map((file)=>({id: file.substring(0, file.length - 4), text: file.substring(0, file.length - 4)})));
-      return files;
+      // callback(null, files.map((file)=>({id: file.substring(0, file.length - 4), text: file.substring(0, file.length - 4)})));
+      // return files;
+      var resArray = [];
+      for (var file of files) {
+        resArray.push(readOneAsync(file.substring(0, file.length - 4)));
+      }
+      Promise.all(resArray).then((resArray)=>{
+        callback(null, resArray);
+      }).catch((err)=>{
+        console.log(err);
+      });
     }
   });
 };
@@ -57,24 +68,69 @@ exports.readOne = (id, callback) => {
 };
 
 exports.update = (id, text, callback) => {
-  var item = items[id];
-  if (!item) {
-    callback(new Error(`No item with id: ${id}`));
-  } else {
-    items[id] = text;
-    callback(null, { id, text });
-  }
+  // var item = items[id];
+  // if (!item) {
+  //   callback(new Error(`No item with id: ${id}`));
+  // } else {
+  //   items[id] = text;
+  //   callback(null, { id, text });
+  // }
+  exports.readAll((err, textArray)=>{
+    if (err) {
+      callback(new Error('error updating'));
+    } else {
+      var found = false;
+      for (var file of textArray) {
+        if (file.id === id) {
+          found = true;
+          fs.writeFile(`${exports.dataDir}/${id}.txt`, text, (err, text)=>{
+            if (err) {
+              throw ('error updating text');
+            } else {
+              var obj = {};
+              obj.id = id;
+              obj.text = String(text);
+              callback(null, obj);
+            }
+          });
+          break;
+        }
+      }
+      if (!found) {
+        callback(new Error(`No item with id: ${id}`));
+      }
+    }
+  });
 };
 
 exports.delete = (id, callback) => {
-  var item = items[id];
-  delete items[id];
-  if (!item) {
-    // report an error if item not found
-    callback(new Error(`No item with id: ${id}`));
-  } else {
-    callback();
-  }
+  // var item = items[id];
+  // delete items[id];
+  // if (!item) {
+  //   // report an error if item not found
+  //   callback(new Error(`No item with id: ${id}`));
+  // } else {
+  //   callback();
+  // }
+  exports.readAll((err, textArray) => {
+    if (err) {
+      callback(new Error('error deleting'));
+    } else {
+      var found = false;
+      for (var file of textArray) {
+        if (file.id === id) {
+          found = true;
+          fs.unlink(`${exports.dataDir}/${id}.txt`, (err) => {
+            callback(err);
+          });
+          break;
+        }
+      }
+      if (!found) {
+        callback(new Error(`No item with id: ${id}`));
+      }
+    }
+  });
 };
 
 // Config+Initialization code -- DO NOT MODIFY /////////////////////////////////
