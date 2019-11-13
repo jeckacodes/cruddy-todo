@@ -48,7 +48,7 @@ $(() => {
       Todo.readOne(id, (todo) => {
         var updatedText = prompt('Change to?', todo.text);
         if (updatedText !== null && updatedText !== todo.text) {
-          Todo.update(id, updatedText, changeTodo.bind(null, id));
+          Todo.update(id, updatedText, changeTodo.bind(null, id, {id: id, text: updatedText}));
         }
       });
     } else {
